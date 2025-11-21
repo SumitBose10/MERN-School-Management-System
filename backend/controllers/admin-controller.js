@@ -1,3 +1,4 @@
+// ...existing code...
 const bcrypt = require('bcrypt');
 const Admin = require('../models/adminSchema.js');
 const Sclass = require('../models/sclassSchema.js');
@@ -7,146 +8,110 @@ const Subject = require('../models/subjectSchema.js');
 const Notice = require('../models/noticeSchema.js');
 const Complain = require('../models/complainSchema.js');
 
-// const adminRegister = async (req, res) => {
-//     try {
-//         const salt = await bcrypt.genSalt(10);
-//         const hashedPass = await bcrypt.hash(req.body.password, salt);
-
-//         const admin = new Admin({
-//             ...req.body,
-//             password: hashedPass
-//         });
-
-//         const existingAdminByEmail = await Admin.findOne({ email: req.body.email });
-//         const existingSchool = await Admin.findOne({ schoolName: req.body.schoolName });
-
-//         if (existingAdminByEmail) {
-//             res.send({ message: 'Email already exists' });
-//         }
-//         else if (existingSchool) {
-//             res.send({ message: 'School name already exists' });
-//         }
-//         else {
-//             let result = await admin.save();
-//             result.password = undefined;
-//             res.send(result);
-//         }
-//     } catch (err) {
-//         res.status(500).json(err);
-//     }
-// };
-
-// const adminLogIn = async (req, res) => {
-//     if (req.body.email && req.body.password) {
-//         let admin = await Admin.findOne({ email: req.body.email });
-//         if (admin) {
-//             const validated = await bcrypt.compare(req.body.password, admin.password);
-//             if (validated) {
-//                 admin.password = undefined;
-//                 res.send(admin);
-//             } else {
-//                 res.send({ message: "Invalid password" });
-//             }
-//         } else {
-//             res.send({ message: "User not found" });
-//         }
-//     } else {
-//         res.send({ message: "Email and password are required" });
-//     }
-// };
-
 const adminRegister = async (req, res) => {
     try {
+        const { email, password, schoolName } = req.body;
+        if (!email || !password) {
+            return res.status(400).send({ message: 'Email and password are required' });
+        }
+
+        const existingAdminByEmail = await Admin.findOne({ email });
+        if (existingAdminByEmail) {
+            return res.status(409).send({ message: 'Email already exists' });
+        }
+
+        const existingSchool = await Admin.findOne({ schoolName });
+        if (existingSchool) {
+            return res.status(409).send({ message: 'School name already exists' });
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        const hashedPass = await bcrypt.hash(password, salt);
+
         const admin = new Admin({
-            ...req.body
+            ...req.body,
+            password: hashedPass
         });
 
-        const existingAdminByEmail = await Admin.findOne({ email: req.body.email });
-        const existingSchool = await Admin.findOne({ schoolName: req.body.schoolName });
-
-        if (existingAdminByEmail) {
-            res.send({ message: 'Email already exists' });
-        }
-        else if (existingSchool) {
-            res.send({ message: 'School name already exists' });
-        }
-        else {
-            let result = await admin.save();
-            result.password = undefined;
-            res.send(result);
-        }
+        let result = await admin.save();
+        result.password = undefined;
+        res.status(201).send(result);
     } catch (err) {
-        res.status(500).json(err);
+        res.status(500).json({ error: err.message || err });
     }
 };
 
 const adminLogIn = async (req, res) => {
-    if (req.body.email && req.body.password) {
-        let admin = await Admin.findOne({ email: req.body.email });
-        if (admin) {
-            if (req.body.password === admin.password) {
-                admin.password = undefined;
-                res.send(admin);
-            } else {
-                res.send({ message: "Invalid password" });
-            }
-        } else {
-            res.send({ message: "User not found" });
+    try {
+        const { email, password } = req.body;
+        if (!email || !password) {
+            return res.status(400).send({ message: 'Email and password are required' });
         }
-    } else {
-        res.send({ message: "Email and password are required" });
+
+        let admin = await Admin.findOne({ email });
+        if (!admin) {
+            return res.status(404).send({ message: 'User not found' });
+        }
+
+        const validated = await bcrypt.compare(password, admin.password);
+        if (!validated) {
+            return res.status(401).send({ message: 'Invalid password' });
+        }
+
+        admin.password = undefined;
+        res.send(admin);
+    } catch (err) {
+        res.status(500).json({ error: err.message || err });
     }
 };
 
 const getAdminDetail = async (req, res) => {
     try {
         let admin = await Admin.findById(req.params.id);
-        if (admin) {
-            admin.password = undefined;
-            res.send(admin);
+        if (!admin) {
+            return res.status(404).send({ message: 'No admin found' });
         }
-        else {
-            res.send({ message: "No admin found" });
-        }
+        admin.password = undefined;
+        res.send(admin);
     } catch (err) {
-        res.status(500).json(err);
+        res.status(500).json({ error: err.message || err });
     }
-}
+};
 
-// const deleteAdmin = async (req, res) => {
-//     try {
-//         const result = await Admin.findByIdAndDelete(req.params.id)
+const deleteAdmin = async (req, res) => {
+    try {
+        const result = await Admin.findByIdAndDelete(req.params.id);
 
-//         await Sclass.deleteMany({ school: req.params.id });
-//         await Student.deleteMany({ school: req.params.id });
-//         await Teacher.deleteMany({ school: req.params.id });
-//         await Subject.deleteMany({ school: req.params.id });
-//         await Notice.deleteMany({ school: req.params.id });
-//         await Complain.deleteMany({ school: req.params.id });
+        await Sclass.deleteMany({ school: req.params.id });
+        await Student.deleteMany({ school: req.params.id });
+        await Teacher.deleteMany({ school: req.params.id });
+        await Subject.deleteMany({ school: req.params.id });
+        await Notice.deleteMany({ school: req.params.id });
+        await Complain.deleteMany({ school: req.params.id });
 
-//         res.send(result)
-//     } catch (error) {
-//         res.status(500).json(err);
-//     }
-// }
+        res.send(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message || error });
+    }
+};
 
-// const updateAdmin = async (req, res) => {
-//     try {
-//         if (req.body.password) {
-//             const salt = await bcrypt.genSalt(10)
-//             res.body.password = await bcrypt.hash(res.body.password, salt)
-//         }
-//         let result = await Admin.findByIdAndUpdate(req.params.id,
-//             { $set: req.body },
-//             { new: true })
+const updateAdmin = async (req, res) => {
+    try {
+        const update = { ...req.body };
+        if (update.password) {
+            const salt = await bcrypt.genSalt(10);
+            update.password = await bcrypt.hash(update.password, salt);
+        }
+        let result = await Admin.findByIdAndUpdate(req.params.id, { $set: update }, { new: true });
 
-//         result.password = undefined;
-//         res.send(result)
-//     } catch (error) {
-//         res.status(500).json(err);
-//     }
-// }
+        if (!result) return res.status(404).send({ message: 'Admin not found' });
 
-// module.exports = { adminRegister, adminLogIn, getAdminDetail, deleteAdmin, updateAdmin };
+        result.password = undefined;
+        res.send(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message || error });
+    }
+};
 
-module.exports = { adminRegister, adminLogIn, getAdminDetail };
+module.exports = { adminRegister, adminLogIn, getAdminDetail, deleteAdmin, updateAdmin };
+// ...existing code...
